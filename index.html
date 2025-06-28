@@ -20,8 +20,36 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 350px 1fr;
             gap: 20px;
+            /* Opción A: minmax() para que la primera columna sea de al menos 300px
+            pero no más de 350px, y se ajuste si es necesario. */
+            grid-template-columns: minmax(300px, 350px) 1fr; /* Ejemplo de ajuste */
+
+            /* Opción B (más avanzada para diseños responsivos con múltiples columnas):
+            Si quisieras que las columnas se adaptaran completamente en móviles,
+            tendrías que cambiar la configuración de grid para pantallas pequeñas
+            usando Media Queries. */
+        }
+        /* SOLUCIÓN PARA EL DESBORDAMIENTO */
+        .controls-panel input[type="text"], 
+        .controls-panel input[type="number"] {
+            box-sizing: border-box; /* Incluye padding y borde en el ancho */
+            width: 100%; /* Mantiene el ancho completo */
+            max-width: 100%; /* Previene desbordamiento */
+            padding: 8px 10px; /* Padding ligeramente reducido */
+        }
+        
+        /* Mantener consistencia con selects */
+        .controls-panel select {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 100%;
+        }
+        
+        /* Ajuste adicional para el contenedor */
+        .controls-panel {
+            box-sizing: border-box;
+            padding: 20px;
         }
 
         .controls-panel {
@@ -240,8 +268,15 @@
 
         .simulation-controls {
             display: flex;
-            gap: 10px;
+            flex-wrap: wrap; /* Permite que los botones se envuelvan en varias líneas */
+            gap: 10px; /* Espacio entre botones */
             margin-bottom: 20px;
+        }
+
+        .simulation-controls button {
+            flex: 1; /* Distribuye el espacio disponible */
+            min-width: calc(50% - 10px); /* Cada botón ocupa aproximadamente la mitad del ancho */
+            margin-right: 0; /* Elimina el margen derecho para evitar desbordamiento */
         }
        
         @keyframes pulse {

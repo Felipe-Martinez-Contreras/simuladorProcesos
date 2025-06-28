@@ -1,3 +1,4 @@
+
 import { estadoSimulador, tickSimulador } from '../simulador.js';
 import Proceso from '../models/proceso.js';
 import { dibujarMemoria } from './memoriaCanvas.js';
@@ -6,9 +7,8 @@ import { mostrarTimeline } from '../utils/timeline_temp.js';
 import { compararAlgoritmos, graficarComparacion } from '../utils/comparacion.js';
 import { animarProcesoEnEjecucion, animarEntradaProceso } from './animaciones.js';
 
-
-
 let intervalo = null;
+const TAM_MAXIMO_BLOQUE = 256; // KB
 
 // === Manejo del toggle de planificación multinivel ===
 const toggle = document.getElementById('multilevel-checkbox');
@@ -24,7 +24,6 @@ if (toggle && priorityContainer) {
         console.log('🔀 Modo multinivel:', activado);
     });
 
-    // Al cargar la página
     priorityContainer.style.display = toggle.checked ? 'block' : 'none';
 }
 
@@ -38,14 +37,24 @@ document.getElementById('process-form').addEventListener('submit', (e) => {
     const memoria = parseInt(document.getElementById('memory').value);
     const prioridad = parseInt(document.getElementById('priority').value);
 
-    const nuevo = new Proceso(nombre, llegada, burst, memoria, prioridad);
-    estadoSimulador.procesos.push(nuevo);
+    if (memoria > TAM_MAXIMO_BLOQUE) {
+        const cantidadHijos = Math.ceil(memoria / TAM_MAXIMO_BLOQUE);
+        const tamañoHijo = Math.ceil(memoria / cantidadHijos);
+
+        for (let i = 0; i < cantidadHijos; i++) {
+            const hijo = new Proceso(`${nombre}_H${i + 1}`, llegada, burst, tamañoHijo, prioridad);
+            hijo.padre = nombre;
+            estadoSimulador.procesos.push(hijo);
+        }
+
+        console.log(`🔧 Proceso grande dividido en ${cantidadHijos} hijos.`);
+    } else {
+        const nuevo = new Proceso(nombre, llegada, burst, memoria, prioridad);
+        estadoSimulador.procesos.push(nuevo);
+    }
+
     renderizarProcesos();
     dibujarMemoria(estadoSimulador.memoria);
-
-    console.log('🧠 Proceso creado:', nuevo);
-    console.log('📋 Lista actual:', estadoSimulador.procesos.map(p => p.nombre));
-
     document.getElementById('process-form').reset();
 });
 
@@ -95,39 +104,38 @@ function actualizarStatusBar() {
 }
 
 export function renderizarProcesos() {
-  const ramList = document.getElementById('process-list');
-  const swapList = document.getElementById('swap-ul');
-  const cpuList = document.getElementById('cpu-list');
+    const ramList = document.getElementById('process-list');
+    const swapList = document.getElementById('swap-ul');
+    const cpuList = document.getElementById('cpu-list');
 
-  ramList.innerHTML = '';
-  swapList.innerHTML = '';
-  cpuList.innerHTML = '';
+    ramList.innerHTML = '';
+    swapList.innerHTML = '';
+    cpuList.innerHTML = '';
 
-  estadoSimulador.procesos.forEach(p => {
-    const li = document.createElement('li');
-    li.textContent = `${p.nombre} (${p.estado})`;
-    li.classList.add(`estado-${p.estado}`);
-    if (p.estado === 'ejecutando') {
-      animarProcesoEnEjecucion(li);
-    } else {
-      animarEntradaProceso(li);
-    }
+    estadoSimulador.procesos.forEach(p => {
+        const li = document.createElement('li');
+        li.textContent = `${p.nombre} (${p.estado})`;
+        li.classList.add(`estado-${p.estado}`);
+        if (p.estado === 'ejecutando') {
+            animarProcesoEnEjecucion(li);
+        } else {
+            animarEntradaProceso(li);
+        }
 
-    if (p.enSwap) {
-      swapList.appendChild(li);
-    } else {
-      ramList.appendChild(li);
-    }
-  });
+        if (p.enSwap) {
+            swapList.appendChild(li);
+        } else {
+            ramList.appendChild(li);
+        }
+    });
 
-  estadoSimulador.procesosCPU.forEach((p, i) => {
-    const li = document.createElement('li');
-    li.textContent = p ? `Núcleo ${i + 1}: ${p.nombre} (${p.estado})` : `Núcleo ${i + 1}: IDLE`;
-    li.classList.add(p ? `estado-${p.estado}` : 'estado-idle');
-    cpuList.appendChild(li);
-  });
+    estadoSimulador.procesosCPU.forEach((p, i) => {
+        const li = document.createElement('li');
+        li.textContent = p ? `Núcleo ${i + 1}: ${p.nombre} (${p.estado})` : `Núcleo ${i + 1}: IDLE`;
+        li.classList.add(p ? `estado-${p.estado}` : 'estado-idle');
+        cpuList.appendChild(li);
+    });
 }
-
 
 document.getElementById('recover-btn').addEventListener('click', () => {
     const memoria = estadoSimulador.memoria;

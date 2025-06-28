@@ -11,41 +11,48 @@ export function mostrarTimeline() {
     timelineChart.destroy();
   }
 
-  // === Agrupar bloques de ejecución continuos ===
-  const bloques = [];
-  let actual = null;
+  // === Agrupar bloques de ejecución por núcleo ===
+  const bloquesPorNucleo = [[], [], [], []]; // 4 núcleos
 
-  for (let tick of estadoSimulador.historialEjecucion) {
-    if (actual && actual.proceso === tick.proceso) {
-      actual.fin = tick.tiempo;
-    } else {
-      if (actual) bloques.push(actual);
-      actual = { proceso: tick.proceso, inicio: tick.tiempo, fin: tick.tiempo };
+  for (let i = 0; i < 4; i++) {
+    let actual = null;
+    for (let tick of estadoSimulador.historialEjecucion) {
+      const proceso = tick.procesos[i];
+      if (actual && actual.proceso === proceso) {
+        actual.fin = tick.tiempo;
+      } else {
+        if (actual) bloquesPorNucleo[i].push(actual);
+        actual = { proceso, inicio: tick.tiempo, fin: tick.tiempo };
+      }
     }
+    if (actual) bloquesPorNucleo[i].push(actual);
   }
-  if (actual) bloques.push(actual);
 
-  // === Crear dataset para Chart.js ===
-  const procesosUnicos = [...new Set(bloques.map(b => b.proceso))];
+  // === Crear datasets para Chart.js ===
+  const datasets = [];
 
-  const data = {
-    labels: procesosUnicos,
-    datasets: [{
-      label: 'Ejecución',
+  bloquesPorNucleo.forEach((bloques, i) => {
+    datasets.push({
+      label: `Núcleo ${i + 1}`,
       data: bloques.map(b => ({
         x: [b.inicio, b.fin + 1],
-        y: b.proceso
+        y: `Núcleo ${i + 1}: ${b.proceso}`
       })),
-      backgroundColor: 'rgba(33, 150, 243, 0.7)',
+      backgroundColor: `rgba(${50 + i * 50}, ${150 - i * 30}, 243, 0.7)`,
       borderColor: 'black',
       borderWidth: 1,
       barThickness: 20
-    }]
-  };
+    });
+  });
+
+  const labels = [...new Set(datasets.flatMap(d => d.data.map(p => p.y)))];
 
   timelineChart = new Chart(ctx, {
     type: 'bar',
-    data,
+    data: {
+      labels,
+      datasets
+    },
     options: {
       indexAxis: 'y',
       scales: {
@@ -56,11 +63,11 @@ export function mostrarTimeline() {
         },
         y: {
           stacked: true,
-          title: { display: true, text: 'Procesos' }
+          title: { display: true, text: 'Núcleo / Proceso' }
         }
       },
       plugins: {
-        legend: { display: false },
+        legend: { display: true },
         tooltip: {
           callbacks: {
             label: ctx => `Tiempo ${ctx.raw.x[0]} - ${ctx.raw.x[1] - 1}`

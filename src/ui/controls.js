@@ -117,12 +117,17 @@ export function renderizarProcesos() {
   const ramList = document.getElementById('process-list'); // RAM general
   const swapList = document.getElementById('swap-ul');
   const cpuList = document.getElementById('cpu-list');
+  const waitingList = document.getElementById('waiting-ul');
+
+
 
   newList.innerHTML = '';
   readyList.innerHTML = '';
   ramList.innerHTML = '';
   swapList.innerHTML = '';
   cpuList.innerHTML = '';
+  waitingList.innerHTML = '';
+
 
   estadoSimulador.procesos.forEach(p => {
     const li = document.createElement('li');
@@ -151,6 +156,16 @@ export function renderizarProcesos() {
     li.classList.add(p ? `estado-${p.estado}` : 'estado-idle');
     cpuList.appendChild(li);
   });
+
+  
+  estadoSimulador.procesosBloqueados.forEach(p => {
+    const li = document.createElement('li');
+    li.textContent = `${p.nombre} (esperando)`;
+    li.classList.add('estado-esperando');
+    waitingList.appendChild(li);
+  });
+
+
 }
 
 

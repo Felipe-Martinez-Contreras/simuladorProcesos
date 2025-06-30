@@ -18,6 +18,8 @@ export const estadoSimulador = {
   historialEjecucion: [],
   algoritmo: 'SJF',
   colaPendientes: [],
+  procesosBloqueados: [],
+
 };
 
 export function tickSimulador() {
@@ -27,6 +29,7 @@ export function tickSimulador() {
   // 1. Llegada de nuevos procesos
   est.procesos.forEach(p => {
     if (p.llegada <= est.reloj && p.estado === 'nuevo') {
+
       const asignado = est.memoria.asignar(p);
       if (!asignado && !p.enSwap && !est.colaPendientes.includes(p)) {
         est.colaPendientes.push(p);
@@ -34,12 +37,13 @@ export function tickSimulador() {
       }
 
       if (!p.enSwap && asignado) {
+        p.actualizarEstado('listo');
+        p.recienLlegado = true;
         if (est.modoMultinivel) {
           (p.prioridad === 0 ? est.colaAlta : est.colaBaja).push(p);
         } else {
           est.colaListos.push(p);
         }
-        p.actualizarEstado('listo');
       }
     }
   });
@@ -50,6 +54,14 @@ export function tickSimulador() {
 
     if (proceso) {
       proceso.tickEjecucion();
+
+      if (Math.random() < 0.05) {
+        proceso.actualizarEstado('esperando');
+        proceso.tiempoBloqueado = 3;
+        est.procesosBloqueados.push(proceso);
+        est.procesosCPU[i] = null;
+        continue;
+      }
 
       if (est.algoritmo === 'RR' || (est.modoMultinivel && proceso.prioridad === 0)) {
         est.quantumsRestantes[i]--;
@@ -67,7 +79,6 @@ export function tickSimulador() {
             console.log(`✅ Programa ${proceso.padre} finalizado (todos sus hijos han terminado).`);
           }
         }
-
         est.procesosCPU[i] = null;
       } else if ((est.algoritmo === 'RR' || (est.modoMultinivel && proceso.prioridad === 0)) && est.quantumsRestantes[i] === 0) {
         proceso.actualizarEstado('listo');
@@ -77,28 +88,46 @@ export function tickSimulador() {
     }
   }
 
-  // 3. Asignar procesos a núcleos disponibles
+  // 3. Procesos bloqueados
+  for (let i = est.procesosBloqueados.length - 1; i >= 0; i--) {
+    const p = est.procesosBloqueados[i];
+    p.tiempoBloqueado--;
+    if (p.tiempoBloqueado <= 0) {
+      p.actualizarEstado('listo');
+      if (est.modoMultinivel) {
+        (p.prioridad === 0 ? est.colaAlta : est.colaBaja).push(p);
+      } else {
+        est.colaListos.push(p);
+      }
+      est.procesosBloqueados.splice(i, 1);
+    }
+  }
+
+  // 4. Asignar procesos a núcleos disponibles
   for (let i = 0; i < 4; i++) {
     if (!est.procesosCPU[i]) {
       let siguiente = null;
 
       if (est.modoMultinivel) {
-        if (est.colaAlta.length > 0) {
-          siguiente = seleccionarSiguienteRR(est.colaAlta);
-          est.colaAlta.shift();
+        const alta = est.colaAlta.filter(p => !p.recienLlegado);
+        const baja = est.colaBaja.filter(p => !p.recienLlegado);
+        if (alta.length > 0) {
+          siguiente = seleccionarSiguienteRR(alta);
+          est.colaAlta = est.colaAlta.filter(p => p !== siguiente);
           est.quantumsRestantes[i] = est.quantum;
-        } else if (est.colaBaja.length > 0) {
-          siguiente = seleccionarSiguienteSJF(est.colaBaja);
+        } else if (baja.length > 0) {
+          siguiente = seleccionarSiguienteSJF(baja);
           est.colaBaja = est.colaBaja.filter(p => p !== siguiente);
           est.quantumsRestantes[i] = 0;
         }
       } else {
+        const listos = est.colaListos.filter(p => !p.recienLlegado);
         if (est.algoritmo === 'SJF') {
-          siguiente = seleccionarSiguienteSJF(est.colaListos);
+          siguiente = seleccionarSiguienteSJF(listos);
           est.colaListos = est.colaListos.filter(p => p !== siguiente);
           est.quantumsRestantes[i] = 0;
         } else {
-          siguiente = seleccionarSiguienteRR(est.colaListos);
+          siguiente = seleccionarSiguienteRR(listos);
           est.colaListos = est.colaListos.filter(p => p !== siguiente);
           est.quantumsRestantes[i] = est.quantum;
         }
@@ -112,7 +141,7 @@ export function tickSimulador() {
     }
   }
 
-  // 4. Acumular espera
+  // 5. Acumular espera
   const enEspera = est.modoMultinivel
     ? [...est.colaAlta, ...est.colaBaja]
     : est.colaListos;
@@ -123,18 +152,19 @@ export function tickSimulador() {
     }
   });
 
-  // 5. Timeline
+  // 6. Timeline
   est.historialEjecucion.push({
     tiempo: est.reloj,
     procesos: est.procesosCPU.map(p => p?.nombre || 'IDLE')
   });
 
-  // 6. Intentar cargar procesos desde la cola de espera externa
+  // 7. Intentar cargar procesos desde la cola de espera externa
   for (let i = 0; i < est.colaPendientes.length; i++) {
     const proceso = est.colaPendientes[i];
     const asignado = est.memoria.asignar(proceso);
     if (asignado && !proceso.enSwap) {
       proceso.actualizarEstado('listo');
+      proceso.recienLlegado = true;
       if (est.modoMultinivel) {
         (proceso.prioridad === 0 ? est.colaAlta : est.colaBaja).push(proceso);
       } else {
@@ -145,12 +175,14 @@ export function tickSimulador() {
     }
   }
 
-    // 7. Intentar recuperar procesos desde SWAP automáticamente
+  // 8. Intentar recuperar procesos desde SWAP automáticamente
   for (let i = 0; i < est.memoria.swap.length; i++) {
     const proceso = est.memoria.swap[i];
     const asignado = est.memoria.asignar(proceso);
-    if (asignado && !proceso.enSwap) {
+    if (asignado) {
+      proceso.enSwap = false;
       proceso.actualizarEstado('listo');
+      proceso.recienLlegado = true;
       if (est.modoMultinivel) {
         (proceso.prioridad === 0 ? est.colaAlta : est.colaBaja).push(proceso);
       } else {
@@ -161,4 +193,10 @@ export function tickSimulador() {
     }
   }
 
+  // 9. Limpiar marca de recienLlegado
+  est.procesos.forEach(p => {
+    if (p.recienLlegado) {
+      delete p.recienLlegado;
+    }
+  });
 }

@@ -18,7 +18,6 @@ export const estadoSimulador = {
   historialEjecucion: [],
   algoritmo: 'SJF',
   colaPendientes: [],
-
 };
 
 export function tickSimulador() {
@@ -29,7 +28,7 @@ export function tickSimulador() {
   est.procesos.forEach(p => {
     if (p.llegada <= est.reloj && p.estado === 'nuevo') {
       const asignado = est.memoria.asignar(p);
-      if (!asignado && !p.enSwap) {
+      if (!asignado && !p.enSwap && !est.colaPendientes.includes(p)) {
         est.colaPendientes.push(p);
         console.log(`⏳ Proceso ${p.nombre} en cola de espera (RAM y swap llenos)`);
       }
@@ -130,19 +129,36 @@ export function tickSimulador() {
     procesos: est.procesosCPU.map(p => p?.nombre || 'IDLE')
   });
 
+  // 6. Intentar cargar procesos desde la cola de espera externa
   for (let i = 0; i < est.colaPendientes.length; i++) {
-  const proceso = est.colaPendientes[i];
-  const asignado = est.memoria.asignar(proceso);
-  if (asignado && !proceso.enSwap) {
-    proceso.actualizarEstado('listo');
-    if (est.modoMultinivel) {
-      (proceso.prioridad === 0 ? est.colaAlta : est.colaBaja).push(proceso);
-    } else {
-      est.colaListos.push(proceso);
+    const proceso = est.colaPendientes[i];
+    const asignado = est.memoria.asignar(proceso);
+    if (asignado && !proceso.enSwap) {
+      proceso.actualizarEstado('listo');
+      if (est.modoMultinivel) {
+        (proceso.prioridad === 0 ? est.colaAlta : est.colaBaja).push(proceso);
+      } else {
+        est.colaListos.push(proceso);
+      }
+      est.colaPendientes.splice(i, 1);
+      i--;
     }
-    est.colaPendientes.splice(i, 1);
-    i--;
   }
-}
+
+    // 7. Intentar recuperar procesos desde SWAP automáticamente
+  for (let i = 0; i < est.memoria.swap.length; i++) {
+    const proceso = est.memoria.swap[i];
+    const asignado = est.memoria.asignar(proceso);
+    if (asignado && !proceso.enSwap) {
+      proceso.actualizarEstado('listo');
+      if (est.modoMultinivel) {
+        (proceso.prioridad === 0 ? est.colaAlta : est.colaBaja).push(proceso);
+      } else {
+        est.colaListos.push(proceso);
+      }
+      est.memoria.swap.splice(i, 1);
+      i--;
+    }
+  }
 
 }

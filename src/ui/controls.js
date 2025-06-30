@@ -8,7 +8,7 @@ import { compararAlgoritmos, graficarComparacion } from '../utils/comparacion.js
 import { animarProcesoEnEjecucion, animarEntradaProceso } from './animaciones.js';
 
 let intervalo = null;
-const TAM_MAXIMO_BLOQUE = 256; // KB
+const TAM_MAXIMO_BLOQUE = 500; // KB
 
 // === Manejo del toggle de planificación multinivel ===
 const toggle = document.getElementById('multilevel-checkbox');
@@ -59,15 +59,23 @@ document.getElementById('process-form').addEventListener('submit', (e) => {
 });
 
 document.getElementById('algo').addEventListener('change', (e) => {
-    estadoSimulador.algoritmo = e.target.value;
-    document.getElementById('quantum-container').style.display =
-        estadoSimulador.algoritmo === 'RR' ? 'block' : 'none';
-    actualizarStatusBar();
+  const algoritmoSeleccionado = e.target.value;
+  estadoSimulador.algoritmo = algoritmoSeleccionado;
+
+  // Mostrar u ocultar el campo de quantum
+  const quantumContainer = document.getElementById('quantum-container');
+  quantumContainer.style.display = algoritmoSeleccionado === 'RR' ? 'block' : 'none';
+
+  actualizarStatusBar();
 });
+
+
 
 document.getElementById('quantum').addEventListener('input', (e) => {
     estadoSimulador.quantum = parseInt(e.target.value);
+    console.log('🔁 Quantum actualizado a:', estadoSimulador.quantum);
 });
+
 
 document.getElementById('start-btn').addEventListener('click', () => {
     if (intervalo) return;
@@ -152,80 +160,6 @@ export function renderizarProcesos() {
 
 }
 
-document.getElementById('recover-btn').addEventListener('click', () => {
-    const memoria = estadoSimulador.memoria;
-    console.log('Intentando recuperar. En swap:', memoria.swap.map(p => p.nombre));
-    if (memoria.swap.length === 0) {
-        alert('No hay procesos en swap.');
-        return;
-    }
-
-document.getElementById('recover-pending-btn').addEventListener('click', () => {
-    const memoria = estadoSimulador.memoria;
-    const pendientes = estadoSimulador.colaPendientes;
-
-    if (pendientes.length === 0) {
-        alert('No hay procesos en la cola de espera.');
-        return;
-    }
-
-    let recuperados = 0;
-
-    for (let i = 0; i < pendientes.length; i++) {
-        const proceso = pendientes[i];
-        const asignado = memoria.asignar(proceso);
-
-        if (asignado && !proceso.enSwap) {
-            proceso.enSwap = false;
-            proceso.actualizarEstado('listo');
-
-            if (estadoSimulador.modoMultinivel) {
-                (proceso.prioridad === 0 ? estadoSimulador.colaAlta : estadoSimulador.colaBaja).push(proceso);
-            } else {
-                estadoSimulador.colaListos.push(proceso);
-            }
-
-            pendientes.splice(i, 1);
-            i--;
-            recuperados++;
-        }
-    }
-
-    if (recuperados === 0) {
-        alert('No hay suficiente espacio en memoria para recuperar procesos de la cola de espera.');
-    } else {
-        alert(`Se recuperaron ${recuperados} proceso(s) desde la cola de espera.`);
-    }
-
-    renderizarProcesos();
-    dibujarMemoria(memoria);
-});
-
-
-    const proceso = memoria.swap[0];
-    const asignado = memoria.asignar(proceso);
-
-    if (asignado) {
-        memoria.swap.shift();
-        proceso.enSwap = false;
-        proceso.actualizarEstado('listo');
-
-        if (estadoSimulador.modoMultinivel) {
-            if (proceso.prioridad === 0) {
-                estadoSimulador.colaAlta.push(proceso);
-            } else {
-                estadoSimulador.colaBaja.push(proceso);
-            }
-        } else {
-            estadoSimulador.colaListos.push(proceso);
-        }
-
-        renderizarProcesos();
-        dibujarMemoria(memoria);
-    } else {
-        alert('No hay suficiente espacio en memoria para recuperar el proceso.');
-    }
-});
 
 document.getElementById('show-metrics-btn').addEventListener('click', () => {
     mostrarMetricas();

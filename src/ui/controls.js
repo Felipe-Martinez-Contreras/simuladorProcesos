@@ -112,53 +112,47 @@ function actualizarStatusBar() {
 }
 
 export function renderizarProcesos() {
-    const ramList = document.getElementById('process-list');
-    const swapList = document.getElementById('swap-ul');
-    const cpuList = document.getElementById('cpu-list');
+  const newList = document.getElementById('new-list');
+  const readyList = document.getElementById('ready-list');
+  const ramList = document.getElementById('process-list'); // RAM general
+  const swapList = document.getElementById('swap-ul');
+  const cpuList = document.getElementById('cpu-list');
 
-    ramList.innerHTML = '';
-    swapList.innerHTML = '';
-    cpuList.innerHTML = '';
+  newList.innerHTML = '';
+  readyList.innerHTML = '';
+  ramList.innerHTML = '';
+  swapList.innerHTML = '';
+  cpuList.innerHTML = '';
 
-    estadoSimulador.procesos.forEach(p => {
-        const li = document.createElement('li');
-        const nombreMostrar = p.padre ? `${p.nombre} (hijo de ${p.padre})` : p.nombre;
-        li.textContent = `${nombreMostrar} (${p.estado})`;
+  estadoSimulador.procesos.forEach(p => {
+    const li = document.createElement('li');
+    li.textContent = `${p.nombre} (${p.estado})`;
+    li.classList.add(`estado-${p.estado}`);
+    if (p.estado === 'ejecutando') {
+      animarProcesoEnEjecucion(li);
+    } else {
+      animarEntradaProceso(li);
+    }
 
-        li.classList.add(`estado-${p.estado}`);
-        if (p.padre) li.classList.add('proceso-hijo');
+    if (p.enSwap) {
+      swapList.appendChild(li);
+    } else if (p.estado === 'nuevo') {
+      newList.appendChild(li);
+    } else if (p.estado === 'listo') {
+      readyList.appendChild(li);
+    } else if (p.estado === 'terminado') {
+      ramList.appendChild(li); // Opcional: mostrar terminados
+    }
+  });
 
-        if (p.estado === 'ejecutando') {
-            animarProcesoEnEjecucion(li);
-        } else {
-            animarEntradaProceso(li);
-        }
-
-        if (p.enSwap) {
-            swapList.appendChild(li);
-        } else {
-            ramList.appendChild(li);
-        }
-    });
-
-    estadoSimulador.procesosCPU.forEach((p, i) => {
-        const li = document.createElement('li');
-        li.textContent = p ? `Núcleo ${i + 1}: ${p.nombre} (${p.estado})` : `Núcleo ${i + 1}: IDLE`;
-        li.classList.add(p ? `estado-${p.estado}` : 'estado-idle');
-        cpuList.appendChild(li);
-    });
-
-    const pendingList = document.getElementById('pending-ul');
-    pendingList.innerHTML = '';
-
-    estadoSimulador.colaPendientes.forEach(p => {
-        const li = document.createElement('li');
-        li.textContent = `${p.nombre} (esperando)`;
-        li.classList.add('estado-nuevo');
-        pendingList.appendChild(li);
-    });
-
+  estadoSimulador.procesosCPU.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.textContent = p ? `Núcleo ${i + 1}: ${p.nombre} (${p.estado})` : `Núcleo ${i + 1}: IDLE`;
+    li.classList.add(p ? `estado-${p.estado}` : 'estado-idle');
+    cpuList.appendChild(li);
+  });
 }
+
 
 
 document.getElementById('show-metrics-btn').addEventListener('click', () => {

@@ -294,6 +294,11 @@
         .slide-in {
             animation: slideIn 0.4s ease-out;
         }
+        .proceso-hijo {
+            background-color: #e3f2fd;
+            border-left-color: #64b5f6;
+        }
+
     </style>
 </head>
 <body>
@@ -392,6 +397,11 @@
                         <h3>CPU Núcleos</h3>
                         <ul id="cpu-list"></ul>
                     </div>
+                    <div class="process-list-container" id="pending-container">
+                        <h3>Cola de Espera</h3>
+                        <ul id="pending-ul"></ul>
+                    </div>
+
                 </fieldset>
                 <fieldset>
                     <legend>Controles de simulación</legend>
@@ -400,6 +410,8 @@
                     <button class="secondary" id="stop-btn">Detener</button>
                     <button class="secondary" id="reset-btn">Reiniciar</button>
                     <button class="secondary" id="recover-btn">Recuperar de Swap</button>
+                    <button class="secondary" id="recover-pending-btn">Recuperar de Cola de Espera</button>
+
             </fieldset>
             </div>
             <!-- Metricas -->

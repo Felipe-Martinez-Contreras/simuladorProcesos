@@ -114,8 +114,12 @@ export function renderizarProcesos() {
 
     estadoSimulador.procesos.forEach(p => {
         const li = document.createElement('li');
-        li.textContent = `${p.nombre} (${p.estado})`;
+        const nombreMostrar = p.padre ? `${p.nombre} (hijo de ${p.padre})` : p.nombre;
+        li.textContent = `${nombreMostrar} (${p.estado})`;
+
         li.classList.add(`estado-${p.estado}`);
+        if (p.padre) li.classList.add('proceso-hijo');
+
         if (p.estado === 'ejecutando') {
             animarProcesoEnEjecucion(li);
         } else {
@@ -135,6 +139,17 @@ export function renderizarProcesos() {
         li.classList.add(p ? `estado-${p.estado}` : 'estado-idle');
         cpuList.appendChild(li);
     });
+
+    const pendingList = document.getElementById('pending-ul');
+    pendingList.innerHTML = '';
+
+    estadoSimulador.colaPendientes.forEach(p => {
+        const li = document.createElement('li');
+        li.textContent = `${p.nombre} (esperando)`;
+        li.classList.add('estado-nuevo');
+        pendingList.appendChild(li);
+    });
+
 }
 
 document.getElementById('recover-btn').addEventListener('click', () => {
@@ -144,6 +159,48 @@ document.getElementById('recover-btn').addEventListener('click', () => {
         alert('No hay procesos en swap.');
         return;
     }
+
+document.getElementById('recover-pending-btn').addEventListener('click', () => {
+    const memoria = estadoSimulador.memoria;
+    const pendientes = estadoSimulador.colaPendientes;
+
+    if (pendientes.length === 0) {
+        alert('No hay procesos en la cola de espera.');
+        return;
+    }
+
+    let recuperados = 0;
+
+    for (let i = 0; i < pendientes.length; i++) {
+        const proceso = pendientes[i];
+        const asignado = memoria.asignar(proceso);
+
+        if (asignado && !proceso.enSwap) {
+            proceso.enSwap = false;
+            proceso.actualizarEstado('listo');
+
+            if (estadoSimulador.modoMultinivel) {
+                (proceso.prioridad === 0 ? estadoSimulador.colaAlta : estadoSimulador.colaBaja).push(proceso);
+            } else {
+                estadoSimulador.colaListos.push(proceso);
+            }
+
+            pendientes.splice(i, 1);
+            i--;
+            recuperados++;
+        }
+    }
+
+    if (recuperados === 0) {
+        alert('No hay suficiente espacio en memoria para recuperar procesos de la cola de espera.');
+    } else {
+        alert(`Se recuperaron ${recuperados} proceso(s) desde la cola de espera.`);
+    }
+
+    renderizarProcesos();
+    dibujarMemoria(memoria);
+});
+
 
     const proceso = memoria.swap[0];
     const asignado = memoria.asignar(proceso);

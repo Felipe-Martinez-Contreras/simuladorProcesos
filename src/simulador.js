@@ -16,7 +16,9 @@ export const estadoSimulador = {
   procesosTerminados: [],
   memoria: new Memoria(1024),
   historialEjecucion: [],
-  algoritmo: 'SJF'
+  algoritmo: 'SJF',
+  colaPendientes: [],
+
 };
 
 export function tickSimulador() {
@@ -27,6 +29,11 @@ export function tickSimulador() {
   est.procesos.forEach(p => {
     if (p.llegada <= est.reloj && p.estado === 'nuevo') {
       const asignado = est.memoria.asignar(p);
+      if (!asignado && !p.enSwap) {
+        est.colaPendientes.push(p);
+        console.log(`⏳ Proceso ${p.nombre} en cola de espera (RAM y swap llenos)`);
+      }
+
       if (!p.enSwap && asignado) {
         if (est.modoMultinivel) {
           (p.prioridad === 0 ? est.colaAlta : est.colaBaja).push(p);
@@ -54,6 +61,14 @@ export function tickSimulador() {
         proceso.marcarFin(est.reloj);
         est.memoria.liberar(proceso.nombre);
         est.procesosTerminados.push(proceso);
+        if (proceso.padre) {
+          const hermanos = est.procesos.filter(p => p.padre === proceso.padre);
+          const todosTerminados = hermanos.every(p => p.estado === 'terminado');
+          if (todosTerminados) {
+            console.log(`✅ Programa ${proceso.padre} finalizado (todos sus hijos han terminado).`);
+          }
+        }
+
         est.procesosCPU[i] = null;
       } else if ((est.algoritmo === 'RR' || (est.modoMultinivel && proceso.prioridad === 0)) && est.quantumsRestantes[i] === 0) {
         proceso.actualizarEstado('listo');
@@ -114,4 +129,20 @@ export function tickSimulador() {
     tiempo: est.reloj,
     procesos: est.procesosCPU.map(p => p?.nombre || 'IDLE')
   });
+
+  for (let i = 0; i < est.colaPendientes.length; i++) {
+  const proceso = est.colaPendientes[i];
+  const asignado = est.memoria.asignar(proceso);
+  if (asignado && !proceso.enSwap) {
+    proceso.actualizarEstado('listo');
+    if (est.modoMultinivel) {
+      (proceso.prioridad === 0 ? est.colaAlta : est.colaBaja).push(proceso);
+    } else {
+      est.colaListos.push(proceso);
+    }
+    est.colaPendientes.splice(i, 1);
+    i--;
+  }
+}
+
 }

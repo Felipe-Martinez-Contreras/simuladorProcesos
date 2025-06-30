@@ -12,6 +12,11 @@ export class Memoria {
         this.tamañoTotal = tamañoTotal;
         this.bloques = [new Bloque(0, tamañoTotal)];
         this.swap = [];
+        this.tamañoSwap = 1024; // KB
+    }
+
+    usoSwap() {
+        return this.swap.reduce((acc, p) => acc + p.memoria, 0);
     }
 
     asignar(proceso) {
@@ -35,17 +40,19 @@ export class Memoria {
             }
         }
 
-        // No hay espacio se envia a swap solo si aún no está
-        if (!proceso.enSwap) {
+        // No hay espacio en RAM, intentar swap si hay espacio disponible
+        if (!proceso.enSwap && this.usoSwap() + tamaño <= this.tamañoSwap) {
             proceso.enSwap = true;
             proceso.actualizarEstado('swapped');
             this.swap.push(proceso);
             console.log(`⚠️ Proceso ${proceso.nombre} enviado a SWAP`);
+            return false;
         }
 
+        // No hay espacio en RAM ni en swap
+        console.log(`❌ Proceso ${proceso.nombre} no cabe en RAM ni en swap. Debe ir a cola de espera.`);
         return false;
     }
-
 
     liberar(nombreProceso) {
         for (let i = 0; i < this.bloques.length; i++) {
@@ -68,7 +75,7 @@ export class Memoria {
             if (actual.libre && siguiente.libre) {
                 actual.tamaño += siguiente.tamaño;
                 this.bloques.splice(i + 1, 1);
-                i--; 
+                i--;
             }
         }
     }

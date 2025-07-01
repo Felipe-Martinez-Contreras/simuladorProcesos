@@ -456,39 +456,54 @@
             </div>
         </div>
     </div>
-    <script type="module">
-        
-        // Mostrar u ocultar el campo de quantum al cargar la página
+    <script type="module">// Mostrar u ocultar el campo de quantum al cargar la página
         document.addEventListener('DOMContentLoaded', () => {
         const algoritmoInicial = document.getElementById('algo').value;
         document.getElementById('quantum-container').style.display =
-        algoritmoInicial === 'RR' ? 'block' : 'none';
+            algoritmoInicial === 'RR' ? 'block' : 'none';
         });
 
-        // Funcionalidades del tab
+        // Funcionalidades del tab con carga automática de métricas
         document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                // Remover clase activo de todas las pestañas y contenidos
-                document.querySelectorAll('.tab, .tab-content').forEach(el =>
-                    el.classList.remove('active'));
+        tab.addEventListener('click', async () => {
+            document.querySelectorAll('.tab, .tab-content').forEach(el =>
+            el.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.tab).classList.add('active');
 
-                // Agregar clase activo a la pestaña clicada y al contenido correspondiente
-                tab.classList.add('active');
-                document.getElementById(tab.dataset.tab).classList.add('active');
-            });
+            // Cargar métricas automáticamente si se selecciona la pestaña "metrics"
+            if (tab.dataset.tab === 'metrics') {
+            const metrics = await import('./src/utils/metrics.js');
+            metrics.mostrarMetricas();
+
+            const { estadoSimulador } = await import('./src/simulador.js');
+            if (estadoSimulador.procesos.length > 0) {
+                const comparacion = await import('./src/utils/comparacion.js');
+                const procesos = estadoSimulador.procesos.map(p => ({
+                nombre: p.nombre,
+                llegada: p.llegada,
+                burst: p.burst,
+                memoria: p.memoria
+                }));
+                const resultados = comparacion.compararAlgoritmos(procesos);
+                comparacion.graficarComparacion(resultados);
+            }
+            }
+        });
         });
 
         // Actualizar la barra de estado
         function updateStatusBar(time, algorithm, status) {
-            document.getElementById('current-time').textContent = time;
-            document.getElementById('current-algo').textContent = algorithm;
-            document.getElementById('sim-status').textContent = status;
+        document.getElementById('current-time').textContent = time;
+        document.getElementById('current-algo').textContent = algorithm;
+        document.getElementById('sim-status').textContent = status;
         }
 
         // Cargar los módulos de la aplicación
         import('./src/ui/controls.js')
-            .then(() => console.log('controls.js cargado correctamente'))
-            .catch(err => console.error('Error al cargar controls.js:', err));
+        .then(() => console.log('controls.js cargado correctamente'))
+        .catch(err => console.error('Error al cargar controls.js:', err));
     </script>
+
 </body>
 </html>

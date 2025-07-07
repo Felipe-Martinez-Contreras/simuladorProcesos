@@ -204,6 +204,11 @@
             border-left-color: #ff9800;
             background: #fff3e0;
         }
+        .estado-esperando {
+            border-left-color: #ff5722;
+            background: #ffe0b2;
+        }
+
 
         /* Animations */
         .pulse-animation {
@@ -294,6 +299,11 @@
         .slide-in {
             animation: slideIn 0.4s ease-out;
         }
+        .proceso-hijo {
+            background-color: #e3f2fd;
+            border-left-color: #64b5f6;
+        }
+
     </style>
 </head>
 <body>
@@ -319,7 +329,7 @@
                     <h3>Crear Nuevo Proceso</h3>
                     <div class="form-group">
                         <label for="name">Nombre del Proceso:</label>
-                        <input id="name" placeholder="ej. ProcA" required="" type="text"/>
+                        <input id="name" placeholder="ej. ProcA" required="" type="text" oninvalid="this.setCustomValidity('Por favor, ingresa un nombre')" oninput="this.setCustomValidity('')"/>
                     </div>
                     <div class="form-group">
                         <label for="arrival">Tiempo de Llegada (ms):</label>
@@ -350,13 +360,17 @@
             </fieldset>
             <fieldset>
                 <legend>Configuración de planificación</legend>
-                <input checked="" id="multinivel-checkbox" type="checkbox"/>
+                <input checked id="multinivel-checkbox" type="checkbox" />
                 <select id="algo">
                     <option value="SJF">Shortest Job First (SJF)</option>
                     <option value="RR">Round Robin (RR)</option>
                 </select>
-                <input id="quantum" min="1" type="number" value="5"/>
+                <div id="quantum-container" style="display: none;">
+                    <label for="quantum">Quantum:</label>
+                    <input id="quantum" min="1" type="number" value="5" />
+                </div>
             </fieldset>
+
             
             <fieldset>
                 <legend>Métricas y análisis</legend>
@@ -371,6 +385,7 @@
                 <button class="tab active" data-tab="visualization">Visualización</button>
                 <button class="tab" data-tab="metrics">Métricas</button>
                 <button class="tab" data-tab="timeline">Timeline</button>
+                <button class="tab" data-tab="paginacion">Paginacion</button>
             </div>
             <!-- Tab de visualización -->
             <div class="tab-content active" id="visualization">
@@ -383,6 +398,16 @@
                             <h3>Procesos en RAM</h3>
                             <ul id="process-list"></ul>
                         </div>
+                        <div class="process-list-container">
+                            <h3>Procesos Nuevos</h3>
+                            <ul id="new-list"></ul>
+                        </div>
+
+                        <div class="process-list-container">
+                            <h3>Procesos Listos</h3>
+                            <ul id="ready-list"></ul>
+                        </div>
+
                         <div class="process-list-container" id="swap-container">
                             <h3>Swap (Disco)</h3>
                             <ul id="swap-ul"></ul>
@@ -392,6 +417,16 @@
                         <h3>CPU Núcleos</h3>
                         <ul id="cpu-list"></ul>
                     </div>
+                    <div class="process-list-container" id="pending-container">
+                        <h3>Cola de Espera</h3>
+                        <ul id="pending-ul"></ul>
+                    </div>
+                    <div class="process-list-container" id="waiting-container">
+                        <h3>Procesos Esperando (Bloqueados)</h3>
+                        <ul id="waiting-ul"></ul>
+                    </div>
+
+
                 </fieldset>
                 <fieldset>
                     <legend>Controles de simulación</legend>
@@ -399,7 +434,8 @@
                     <button class="secondary" id="step-btn">Avanzar</button>
                     <button class="secondary" id="stop-btn">Detener</button>
                     <button class="secondary" id="reset-btn">Reiniciar</button>
-                    <button class="secondary" id="recover-btn">Recuperar de Swap</button>
+                    
+
             </fieldset>
             </div>
             <!-- Metricas -->
@@ -419,33 +455,62 @@
                     <canvas height="400" id="timeline-chart" width="800"></canvas>
                 </fieldset>
             </div>
+            <!-- Paginacion -->
+            <div class="tab-content" id="paginacion">
+                <fieldset>
+                    <legend>Paginacion</legend>
+                    <h3>Tabla de Páginas por Proceso</h3>
+                    <div id="tabla-paginacion"></div>
+                </fieldset>
+            </div>
         </div>
     </div>
-    <script type="module">
-        // Funcionalidades del tab
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                // Remover clase activo de todas las pestañas y contenidos
-                document.querySelectorAll('.tab, .tab-content').forEach(el =>
-                    el.classList.remove('active'));
+    <script type="module">// Mostrar u ocultar el campo de quantum al cargar la página
+        document.addEventListener('DOMContentLoaded', () => {
+        const algoritmoInicial = document.getElementById('algo').value;
+        document.getElementById('quantum-container').style.display =
+            algoritmoInicial === 'RR' ? 'block' : 'none';
+        });
 
-                // Agregar clase activo a la pestaña clicada y al contenido correspondiente
-                tab.classList.add('active');
-                document.getElementById(tab.dataset.tab).classList.add('active');
-            });
+        // Funcionalidades del tab con carga automática de métricas
+        document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', async () => {
+            document.querySelectorAll('.tab, .tab-content').forEach(el =>
+            el.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.tab).classList.add('active');
+
+            // Cargar métricas automáticamente si se selecciona la pestaña "metrics"
+            if (tab.dataset.tab === 'metrics') {
+            const metrics = await import('./src/utils/metrics.js');
+            metrics.mostrarMetricas();
+
+            const { estadoSimulador } = await import('./src/simulador.js');
+            if (estadoSimulador.procesos.length > 0) {
+                const comparacion = await import('./src/utils/comparacion.js');
+                const procesos = estadoSimulador.procesos.map(p => ({
+                nombre: p.nombre,
+                llegada: p.llegada,
+                burst: p.burst,
+                memoria: p.memoria
+                }));
+                const resultados = comparacion.compararAlgoritmos(procesos);
+                comparacion.graficarComparacion(resultados);
+            }
+            }
+        });
         });
 
         // Actualizar la barra de estado
         function updateStatusBar(time, algorithm, status) {
-            document.getElementById('current-time').textContent = time;
-            document.getElementById('current-algo').textContent = algorithm;
-            document.getElementById('sim-status').textContent = status;
+        document.getElementById('current-time').textContent = time;
+        document.getElementById('current-algo').textContent = algorithm;
+        document.getElementById('sim-status').textContent = status;
         }
 
         // Cargar los módulos de la aplicación
-        import('./src/ui/controls.js')
-            .then(() => console.log('controls.js cargado correctamente'))
-            .catch(err => console.error('Error al cargar controls.js:', err));
+        import('./src/ui/controls.js').then(() => console.log('controls.js cargado correctamente')).catch(err => console.error('Error al cargar controls.js:', err));
     </script>
+
 </body>
 </html>

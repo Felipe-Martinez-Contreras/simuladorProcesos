@@ -1,11 +1,12 @@
+
 import Proceso from '../models/proceso.js';
 import { Memoria } from '../models/memoria.js';
 import { seleccionarSiguienteSJF } from '../schedulers/sjf_temp.js';
-import { seleccionarSiguienteRR} from '../schedulers/rr_temp.js';
+import { seleccionarSiguienteRR } from '../schedulers/rr_temp.js';
 
 function simular(procesosOriginales, algoritmo, quantum = 4) {
   const procesos = procesosOriginales.map(p =>
-    new Proceso(p.nombre, p.llegada, p.burst, p.memoria)
+    new Proceso(p.nombre, p.llegada, p.burst, p.memoria, p.prioridad ?? 0)
   );
 
   const memoria = new Memoria(1024);
@@ -13,45 +14,57 @@ function simular(procesosOriginales, algoritmo, quantum = 4) {
   let reloj = 0;
   let colaListos = [];
   let actual = null;
+  let quantumRestante = quantum;
 
   while (terminados.length < procesos.length) {
-    // Llegada
+    // Llegada: solo se asignan, no se ejecutan aún
     procesos.forEach(p => {
       if (p.llegada === reloj && p.estado === 'nuevo') {
-        memoria.asignar(p);
-        if (!p.enSwap) colaListos.push(p);
+        const asignado = memoria.asignar(p);
+        if (!p.enSwap && asignado) {
+          p.actualizarEstado('listo');
+          colaListos.push(p);
+        }
       }
     });
 
-    // Cambio de contexto
-    if (!actual || actual.burstRestante === 0) {
-      if (actual?.burstRestante === 0) {
+    // Tick de ejecución
+    if (actual) {
+      actual.tickEjecucion();
+      if (algoritmo === 'RR') quantumRestante--;
+
+      if (actual.burstRestante === 0) {
+        actual.actualizarEstado('terminado');
         actual.marcarFin(reloj);
         memoria.liberar(actual.nombre);
         terminados.push(actual);
+        actual = null;
+        quantumRestante = quantum;
+      } else if (algoritmo === 'RR' && quantumRestante === 0) {
+        actual.actualizarEstado('listo');
+        colaListos.push(actual);
+        actual = null;
+        quantumRestante = quantum;
       }
+    }
 
+    // Cambio de contexto (solo si no hay proceso actual)
+    if (!actual) {
       actual = (algoritmo === 'SJF')
         ? seleccionarSiguienteSJF(colaListos)
-        : seleccionarSiguienteRR(colaListos, quantum);
+        : seleccionarSiguienteRR(colaListos);
 
       if (actual) {
+        colaListos = colaListos.filter(p => p !== actual);
         actual.actualizarEstado('ejecutando');
         actual.marcarInicio(reloj);
+        if (algoritmo === 'RR') quantumRestante = quantum;
       }
     }
 
-    // Tick
-    if (actual) {
-      actual.tickEjecucion();
-      if (actual.burstRestante === 0) {
-        actual.actualizarEstado('terminado');
-        colaListos = colaListos.filter(p => p !== actual);
-      }
-    }
-
+    // Acumular espera
     colaListos.forEach(p => {
-      if (p !== actual && !p.enSwap) p.tEspera++;
+      if (!p.enSwap) p.tEspera++;
     });
 
     reloj++;
@@ -74,7 +87,6 @@ function simular(procesosOriginales, algoritmo, quantum = 4) {
 export function compararAlgoritmos(procesos) {
   const resultadoSJF = simular(procesos, 'SJF');
   const resultadoRR = simular(procesos, 'RR', 4);
-
   return [resultadoSJF, resultadoRR];
 }
 

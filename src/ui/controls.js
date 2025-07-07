@@ -6,6 +6,7 @@ import { mostrarMetricas } from '../utils/metrics.js';
 import { mostrarTimeline } from '../utils/timeline_temp.js';
 import { compararAlgoritmos, graficarComparacion } from '../utils/comparacion.js';
 import { animarProcesoEnEjecucion, animarEntradaProceso } from './animaciones.js';
+import { mostrarTablaPaginacion } from '../utils/paginacion.js';
 
 let intervalo = null;
 const TAM_MAXIMO_BLOQUE = 256; // KB
@@ -40,9 +41,11 @@ document.getElementById('process-form').addEventListener('submit', (e) => {
     if (memoria > TAM_MAXIMO_BLOQUE) {
         const cantidadHijos = Math.ceil(memoria / TAM_MAXIMO_BLOQUE);
         const tamañoHijo = Math.ceil(memoria / cantidadHijos);
+        const burstPorHijo = Math.ceil(burst / cantidadHijos);
+
 
         for (let i = 0; i < cantidadHijos; i++) {
-            const hijo = new Proceso(`${nombre}_H${i + 1}`, llegada, burst, tamañoHijo, prioridad);
+            const hijo = new Proceso(`${nombre}_H${i + 1}`, llegada, burstPorHijo, tamañoHijo, prioridad);
             hijo.padre = nombre;
             estadoSimulador.procesos.push(hijo);
         }
@@ -59,15 +62,23 @@ document.getElementById('process-form').addEventListener('submit', (e) => {
 });
 
 document.getElementById('algo').addEventListener('change', (e) => {
-    estadoSimulador.algoritmo = e.target.value;
-    document.getElementById('quantum-container').style.display =
-        estadoSimulador.algoritmo === 'RR' ? 'block' : 'none';
-    actualizarStatusBar();
+  const algoritmoSeleccionado = e.target.value;
+  estadoSimulador.algoritmo = algoritmoSeleccionado;
+
+  // Mostrar u ocultar el campo de quantum
+  const quantumContainer = document.getElementById('quantum-container');
+  quantumContainer.style.display = algoritmoSeleccionado === 'RR' ? 'block' : 'none';
+
+  actualizarStatusBar();
 });
+
+
 
 document.getElementById('quantum').addEventListener('input', (e) => {
     estadoSimulador.quantum = parseInt(e.target.value);
+    console.log('🔁 Quantum actualizado a:', estadoSimulador.quantum);
 });
+
 
 document.getElementById('start-btn').addEventListener('click', () => {
     if (intervalo) return;
@@ -104,71 +115,65 @@ function actualizarStatusBar() {
 }
 
 export function renderizarProcesos() {
-    const ramList = document.getElementById('process-list');
-    const swapList = document.getElementById('swap-ul');
-    const cpuList = document.getElementById('cpu-list');
+  const newList = document.getElementById('new-list');
+  const readyList = document.getElementById('ready-list');
+  const ramList = document.getElementById('process-list'); // RAM general
+  const swapList = document.getElementById('swap-ul');
+  const cpuList = document.getElementById('cpu-list');
+  const waitingList = document.getElementById('waiting-ul');
 
-    ramList.innerHTML = '';
-    swapList.innerHTML = '';
-    cpuList.innerHTML = '';
 
-    estadoSimulador.procesos.forEach(p => {
-        const li = document.createElement('li');
-        li.textContent = `${p.nombre} (${p.estado})`;
-        li.classList.add(`estado-${p.estado}`);
-        if (p.estado === 'ejecutando') {
-            animarProcesoEnEjecucion(li);
-        } else {
-            animarEntradaProceso(li);
-        }
 
-        if (p.enSwap) {
-            swapList.appendChild(li);
-        } else {
-            ramList.appendChild(li);
-        }
-    });
+  newList.innerHTML = '';
+  readyList.innerHTML = '';
+  ramList.innerHTML = '';
+  swapList.innerHTML = '';
+  cpuList.innerHTML = '';
+  waitingList.innerHTML = '';
 
-    estadoSimulador.procesosCPU.forEach((p, i) => {
-        const li = document.createElement('li');
-        li.textContent = p ? `Núcleo ${i + 1}: ${p.nombre} (${p.estado})` : `Núcleo ${i + 1}: IDLE`;
-        li.classList.add(p ? `estado-${p.estado}` : 'estado-idle');
-        cpuList.appendChild(li);
-    });
+
+  estadoSimulador.procesos.forEach(p => {
+    const li = document.createElement('li');
+    li.textContent = `${p.padre ? '↳ ' : ''}${p.nombre} (${p.estado})`;
+    li.classList.add(`estado-${p.estado}`);
+    li.title = p.padre ? `Hijo de: ${p.padre}` : '';
+
+    if (p.estado === 'ejecutando') {
+      animarProcesoEnEjecucion(li);
+    } else {
+      animarEntradaProceso(li);
+    }
+
+    if (p.enSwap) {
+      swapList.appendChild(li);
+    } else if (p.estado === 'nuevo') {
+      newList.appendChild(li);
+    } else if (p.estado === 'listo') {
+      readyList.appendChild(li);
+    } else if (p.estado === 'terminado') {
+      ramList.appendChild(li); // Opcional: mostrar terminados
+    }
+  });
+
+  estadoSimulador.procesosCPU.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.textContent = p ? `Núcleo ${i + 1}: ${p.nombre} (${p.estado})` : `Núcleo ${i + 1}: IDLE`;
+    li.classList.add(p ? `estado-${p.estado}` : 'estado-idle');
+    cpuList.appendChild(li);
+  });
+
+  
+  estadoSimulador.procesosBloqueados.forEach(p => {
+    const li = document.createElement('li');
+    li.textContent = `${p.nombre} (esperando)`;
+    li.classList.add('estado-esperando');
+    waitingList.appendChild(li);
+  });
+
+
 }
 
-document.getElementById('recover-btn').addEventListener('click', () => {
-    const memoria = estadoSimulador.memoria;
-    console.log('Intentando recuperar. En swap:', memoria.swap.map(p => p.nombre));
-    if (memoria.swap.length === 0) {
-        alert('No hay procesos en swap.');
-        return;
-    }
 
-    const proceso = memoria.swap[0];
-    const asignado = memoria.asignar(proceso);
-
-    if (asignado) {
-        memoria.swap.shift();
-        proceso.enSwap = false;
-        proceso.actualizarEstado('listo');
-
-        if (estadoSimulador.modoMultinivel) {
-            if (proceso.prioridad === 0) {
-                estadoSimulador.colaAlta.push(proceso);
-            } else {
-                estadoSimulador.colaBaja.push(proceso);
-            }
-        } else {
-            estadoSimulador.colaListos.push(proceso);
-        }
-
-        renderizarProcesos();
-        dibujarMemoria(memoria);
-    } else {
-        alert('No hay suficiente espacio en memoria para recuperar el proceso.');
-    }
-});
 
 document.getElementById('show-metrics-btn').addEventListener('click', () => {
     mostrarMetricas();
@@ -177,6 +182,11 @@ document.getElementById('show-metrics-btn').addEventListener('click', () => {
 document.querySelector('.tab[data-tab="timeline"]').addEventListener('click', () => {
     mostrarTimeline();
 });
+
+document.querySelector('.tab[data-tab="paginacion"]').addEventListener('click', () => {
+  mostrarTablaPaginacion();
+});
+
 
 document.getElementById('compare-runs-btn').addEventListener('click', () => {
     estadoSimulador.procesos.forEach(p => delete p.quantumUsado);

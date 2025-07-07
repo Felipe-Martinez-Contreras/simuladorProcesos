@@ -22,7 +22,7 @@ export function mostrarMetricas() {
     tabla.style.marginBottom = '20px';
 
     const encabezado = document.createElement('tr');
-    ['Proceso', 'T. Llegada', 'T. Inicio', 'T. Fin', 'T. Respuesta', 'T. Espera', 'T. Retorno'].forEach(texto => {
+    ['Proceso', 'Padre', 'T. Llegada', 'T. Inicio', 'T. Fin', 'T. Respuesta', 'T. Espera', 'T. Retorno'].forEach(texto => {
         const th = document.createElement('th');
         th.textContent = texto;
         th.style.borderBottom = '2px solid #ddd';
@@ -40,13 +40,14 @@ export function mostrarMetricas() {
         const fila = document.createElement('tr');
         [
             p.nombre,
+            p.padre ?? '-',
             p.llegada,
             p.tInicio ?? '-',
             p.tFin ?? '-',
             p.tRespuesta ?? '-',
             p.tEspera ?? '-',
             p.tRetorno ?? '-'
-        ].forEach(valor => {
+            ].forEach(valor => {
             const td = document.createElement('td');
             td.textContent = valor;
             td.style.padding = '6px';

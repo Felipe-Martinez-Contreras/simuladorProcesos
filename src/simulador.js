@@ -42,6 +42,8 @@ export function tickSimulador() {
           est.colaListos.push(p);
         }
         p.actualizarEstado('listo');
+        p.tickListo = est.reloj; // ← NUEVO
+
       }
     }
   });
@@ -94,6 +96,7 @@ export function tickSimulador() {
     p.tiempoBloqueado--;
     if (p.tiempoBloqueado <= 0) {
       p.actualizarEstado('listo');
+      p.tickListo = est.reloj;
       est.colaListos.push(p);
       est.procesosBloqueados.splice(i, 1);
     }
@@ -101,39 +104,47 @@ export function tickSimulador() {
 
 
   // 3. Asignar procesos a núcleos disponibles
-  for (let i = 0; i < 4; i++) {
-    if (!est.procesosCPU[i]) {
-      let siguiente = null;
+for (let i = 0; i < 4; i++) {
+  if (!est.procesosCPU[i]) {
+    let siguiente = null;
 
-      if (est.modoMultinivel) {
-        if (est.colaAlta.length > 0) {
-          siguiente = seleccionarSiguienteRR(est.colaAlta);
-          est.colaAlta.shift();
-          est.quantumsRestantes[i] = est.quantum;
-        } else if (est.colaBaja.length > 0) {
-          siguiente = seleccionarSiguienteSJF(est.colaBaja);
-          est.colaBaja = est.colaBaja.filter(p => p !== siguiente);
-          est.quantumsRestantes[i] = 0;
-        }
-      } else {
-        if (est.algoritmo === 'SJF') {
-          siguiente = seleccionarSiguienteSJF(est.colaListos);
-          est.colaListos = est.colaListos.filter(p => p !== siguiente);
-          est.quantumsRestantes[i] = 0;
-        } else {
-          siguiente = seleccionarSiguienteRR(est.colaListos);
-          est.colaListos = est.colaListos.filter(p => p !== siguiente);
-          est.quantumsRestantes[i] = est.quantum;
-        }
+    const puedeAsignarse = (p) => p.tickListo !== undefined && p.tickListo < est.reloj;
+
+    if (est.modoMultinivel) {
+      const candidatosAlta = est.colaAlta.filter(puedeAsignarse);
+      const candidatosBaja = est.colaBaja.filter(puedeAsignarse);
+
+      if (candidatosAlta.length > 0) {
+        siguiente = seleccionarSiguienteRR(candidatosAlta);
+        est.colaAlta = est.colaAlta.filter(p => p !== siguiente);
+        est.quantumsRestantes[i] = est.quantum;
+      } else if (candidatosBaja.length > 0) {
+        siguiente = seleccionarSiguienteSJF(candidatosBaja);
+        est.colaBaja = est.colaBaja.filter(p => p !== siguiente);
+        est.quantumsRestantes[i] = 0;
       }
+    } else {
+      const candidatos = est.colaListos.filter(puedeAsignarse);
 
-      if (siguiente) {
-        siguiente.actualizarEstado('ejecutando');
-        siguiente.marcarInicio(est.reloj);
-        est.procesosCPU[i] = siguiente;
+      if (est.algoritmo === 'SJF') {
+        siguiente = seleccionarSiguienteSJF(candidatos);
+        est.colaListos = est.colaListos.filter(p => p !== siguiente);
+        est.quantumsRestantes[i] = 0;
+      } else {
+        siguiente = seleccionarSiguienteRR(candidatos);
+        est.colaListos = est.colaListos.filter(p => p !== siguiente);
+        est.quantumsRestantes[i] = est.quantum;
       }
     }
+
+    if (siguiente) {
+      siguiente.actualizarEstado('ejecutando');
+      siguiente.marcarInicio(est.reloj);
+      est.procesosCPU[i] = siguiente;
+    }
   }
+}
+
 
   // 4. Acumular espera
   const enEspera = est.modoMultinivel
@@ -158,6 +169,8 @@ export function tickSimulador() {
     const asignado = est.memoria.asignar(proceso);
     if (asignado && !proceso.enSwap) {
       proceso.actualizarEstado('listo');
+      proceso.tickListo = est.reloj;
+
       if (est.modoMultinivel) {
         (proceso.prioridad === 0 ? est.colaAlta : est.colaBaja).push(proceso);
       } else {
@@ -174,6 +187,8 @@ export function tickSimulador() {
     const asignado = est.memoria.asignar(proceso);
     if (asignado && !proceso.enSwap) {
       proceso.actualizarEstado('listo');
+      proceso.tickListo = est.reloj;
+
       if (est.modoMultinivel) {
         (proceso.prioridad === 0 ? est.colaAlta : est.colaBaja).push(proceso);
       } else {

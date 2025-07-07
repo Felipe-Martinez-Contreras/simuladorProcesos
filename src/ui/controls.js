@@ -6,9 +6,10 @@ import { mostrarMetricas } from '../utils/metrics.js';
 import { mostrarTimeline } from '../utils/timeline_temp.js';
 import { compararAlgoritmos, graficarComparacion } from '../utils/comparacion.js';
 import { animarProcesoEnEjecucion, animarEntradaProceso } from './animaciones.js';
+import { mostrarTablaPaginacion } from '../utils/paginacion.js';
 
 let intervalo = null;
-const TAM_MAXIMO_BLOQUE = 500; // KB
+const TAM_MAXIMO_BLOQUE = 256; // KB
 
 // === Manejo del toggle de planificación multinivel ===
 const toggle = document.getElementById('multilevel-checkbox');
@@ -40,9 +41,11 @@ document.getElementById('process-form').addEventListener('submit', (e) => {
     if (memoria > TAM_MAXIMO_BLOQUE) {
         const cantidadHijos = Math.ceil(memoria / TAM_MAXIMO_BLOQUE);
         const tamañoHijo = Math.ceil(memoria / cantidadHijos);
+        const burstPorHijo = Math.ceil(burst / cantidadHijos);
+
 
         for (let i = 0; i < cantidadHijos; i++) {
-            const hijo = new Proceso(`${nombre}_H${i + 1}`, llegada, burst, tamañoHijo, prioridad);
+            const hijo = new Proceso(`${nombre}_H${i + 1}`, llegada, burstPorHijo, tamañoHijo, prioridad);
             hijo.padre = nombre;
             estadoSimulador.procesos.push(hijo);
         }
@@ -131,8 +134,10 @@ export function renderizarProcesos() {
 
   estadoSimulador.procesos.forEach(p => {
     const li = document.createElement('li');
-    li.textContent = `${p.nombre} (${p.estado})`;
+    li.textContent = `${p.padre ? '↳ ' : ''}${p.nombre} (${p.estado})`;
     li.classList.add(`estado-${p.estado}`);
+    li.title = p.padre ? `Hijo de: ${p.padre}` : '';
+
     if (p.estado === 'ejecutando') {
       animarProcesoEnEjecucion(li);
     } else {
@@ -177,6 +182,11 @@ document.getElementById('show-metrics-btn').addEventListener('click', () => {
 document.querySelector('.tab[data-tab="timeline"]').addEventListener('click', () => {
     mostrarTimeline();
 });
+
+document.querySelector('.tab[data-tab="paginacion"]').addEventListener('click', () => {
+  mostrarTablaPaginacion();
+});
+
 
 document.getElementById('compare-runs-btn').addEventListener('click', () => {
     estadoSimulador.procesos.forEach(p => delete p.quantumUsado);
